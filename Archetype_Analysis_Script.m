@@ -79,6 +79,9 @@ end
 
 figure
 
+tiledlayout(1,2)
+nexttile
+
 hold on
 plot(2:length(EE)+1,EE,'LineWidth',4)
 xlabel('Number of Components')
@@ -86,10 +89,50 @@ ylabel('Profile Log Likelihood')
 axis tight
 plot([6,6],[108.9396,EE(5)],'k--','LineWidth',2)
 hold off
-
+nexttile
 
 
 %% N-NMF
+
+% Convergence plot
+
+N_iter=1000;
+rng(0,'twister');
+[m,n]=size(DD);
+k=6;
+WT=rand(m,k)+eps;
+HT=rand(k,n)+eps;
+L=zeros(1,1001);
+L2=zeros(1,1001);
+L(1)=norm(DD-WT*HT,"fro");
+L2(1)=norm(DD-WT*HT);
+for i=1:N_iter
+    % update H
+    WV=WT'*DD;
+    WWH=WT'*WT*HT;
+    HT=HT.*(WV./WWH);
+    HT=HT./sum(HT,1); % Additional normalization step
+
+    % update W
+    VH=DD*HT';
+    WHH=WT*(HT*HT');
+    WT=WT.*(VH./WHH);
+    L(i+1)=norm(DD-WT*HT,"fro");
+    L2(i+1)=norm(DD-WT*HT);
+end
+
+hold on
+yyaxis left
+
+plot(0:1000,log(L),'LineWidth',4)
+xlabel('Number of Iterations')
+ylabel('Log ||V-WH||_{F}')
+yyaxis right
+plot(0:1000,log(L2),'LineWidth',2)
+ylabel('Log ||V-WH||_{2}')
+hold off
+
+% Archetype calculation
 
 [W6,H6]=NMF(DD,6);
 
@@ -128,6 +171,14 @@ end
 Gene_Tab_Check=table('Size',[length(Genes_Ann) 7],'VariableTypes',{'string','double','double','double','double','double','double'},'VariableNames',{'Gene','Factor1','Factor2','Factor3','Factor4','Factor5','Factor6'});
 Gene_Tab_Check.Gene=string(Genes_Ann);
 Gene_Tab_Check{:,2:7}=PCC';
+
+%% Correlation between each gene and each archetype
+PC=corr([H6;Data]','Type','Spearman');
+PC=PC(1:6,7:end);
+Gene_Tab_All=table('Size',[length(Genes) 7],'VariableTypes',{'string','double','double','double','double','double','double'},'VariableNames',{'Gene','Factor1','Factor2','Factor3','Factor4','Factor5','Factor6'});
+Gene_Tab_All.Gene=string(Genes);
+Gene_Tab_All{:,2:7}=PC';
+
 
 
 %% Figure Computation
@@ -572,12 +623,42 @@ end
 Drug_R=Drug_Response;
 Drug_R(Drug_R>9999)=0;
 
-%% Irinotecan  Fig 3D
-
-% Show Blood, Breast, Lung, Others
+%% LBW242 Fig 3D
 figure
 
-tiledlayout(1,2)
+tiledlayout(3,3)
+nexttile
+
+hold on
+
+Ind=find(strcmp(CCLE_Anno_Drug.lineage,"breast"));
+scatter(min(H_Drug(1,Ind),0.06),Drug_R(Ind,8),50,'d','MarkerEdgeColor',[.9290,.6940,.1250],'LineWidth',1.5)
+C=setdiff(1:length(H_Drug(2,:)),Ind);
+
+Ind=find(strcmp(CCLE_Anno_Drug.lineage,"colorectal"));
+
+
+scatter(min(H_Drug(1,Ind),0.06),Drug_R(Ind,8),50,'square','MarkerEdgeColor',[.6350,.0780,.1840],'LineWidth',1.5)
+C=setdiff(C,Ind);
+
+Ind=find(strcmp(CCLE_Anno_Drug.lineage,"skin"));
+scatter(min(H_Drug(1,Ind),0.06),Drug_R(Ind,8),50,'+','MarkerEdgeColor',[0,.4470,.7410],'LineWidth',1.5)
+C=setdiff(C,Ind);
+
+scatter(min(H_Drug(1,C),0.06),Drug_R(C,8),30,'MarkerEdgeColor',[.5,.5,.5])
+
+
+lgd=legend('Breast','Colorectal','Skin','Others');
+lgd.NumColumns=2;
+xlabel('Survival Archetype Score')
+ylabel('LBW242 Activity Area')
+hold off
+
+
+%% Irinotecan  Fig 3E
+
+% Show Blood, Breast, Lung, Others
+
 nexttile
 
 hold on
@@ -587,6 +668,8 @@ scatter(H_Drug(2,Ind),Drug_R(Ind,6),50,'d','MarkerEdgeColor',[.9290,.6940,.1250]
 C=setdiff(1:length(H_Drug(2,:)),Ind);
 
 Ind=find(strcmp(CCLE_Anno_Drug.lineage,"blood"));
+
+
 scatter(H_Drug(2,Ind),Drug_R(Ind,6),50,'square','MarkerEdgeColor',[.6350,.0780,.1840],'LineWidth',1.5)
 C=setdiff(C,Ind);
 
@@ -597,12 +680,13 @@ C=setdiff(C,Ind);
 scatter(H_Drug(2,C),Drug_R(C,6),30,'MarkerEdgeColor',[.5,.5,.5])
 
 
-legend('Breast','Blood','Lung','Others')
+lgd=legend('Breast','Blood','Lung','Others');
+lgd.NumColumns=2;
 xlabel('Proliferation Archetype Score')
 ylabel('Irinotecan Activity Area')
 hold off
 
-%% Lapatinib Fig 3E
+%% Lapatinib Fig 3F
 
 nexttile 
 hold on
@@ -621,10 +705,83 @@ C=setdiff(C,Ind);
 
 scatter(H_Drug(5,C),Drug_R(C,9),30,'MarkerEdgeColor',[.5,.5,.5])
 
-legend('Breast','Colorectal','Lung','Others')
+lgd=legend('Breast','Colorectal','Lung','Others');
+lgd.NumColumns=2;
 xlabel('Biomass Archetype Score')
 ylabel('Lapatinib Activity Area')
 hold off
+
+%% Figs 3G, H, and I
+
+% One sample per cancer type
+
+Q=unique(CCLE_Anno_Drug.lineage);
+Q=Q([1:20,22:24]);
+Drug_St=cell(1,3);
+Drug_St{1}=Q;
+Drug_St{2}=zeros(23,24);
+Drug_St{3}=zeros(23,6);
+for i=1:23
+    Drug_St{3}(i,:)=mean(H_Drug(:,strcmp(CCLE_Anno_Drug.lineage,Q(i))),2)';
+    for j=1:length(Drugs)
+        Ind_Drug=find((Drug_Response(:,j)<10000)&strcmp(CCLE_Anno_Drug.lineage,Q(i)));
+        if length(Ind_Drug)>0
+            Drug_St{2}(i,j)=mean(Drug_Response(Ind_Drug,j));
+        end
+    end
+end
+
+% Extract LBW242, Irinotecan, and Lapatinib as representative examples
+
+DS=Drug_St{2}(:,[8,6,9]);
+HS=Drug_St{3}(:,[1,2,5]);
+
+Catlab=cell(1,23);
+Catlab{1}="Bile Duct";
+Catlab{2}="Blood";
+Catlab{3}="Bone";
+Catlab{4}="Breast";
+Catlab{5}="CNS";
+Catlab{6}="Colorectal";
+Catlab{7}="Esophagus";
+Catlab{8}="Gastric";
+Catlab{9}="Kidney";
+Catlab{10}="Liver";
+Catlab{11}="Lung";
+Catlab{12}="Lymphocyte";
+Catlab{13}="Ovary";
+Catlab{14}="Pancreas";
+Catlab{15}="PNS";
+Catlab{16}="Plasma Cell";
+Catlab{17}="Prostate";
+Catlab{18}="Skin";
+Catlab{19}="Soft Tissue";
+Catlab{20}="Thyroid";
+Catlab{21}="Upper Airway";
+Catlab{22}="Urinary Tract";
+Catlab{23}="Uterus";
+
+nexttile
+gscatter(HS(:,1),DS(:,1),string(Catlab'))
+xlabel('Survival Archetype Score')
+ylabel('LBW242 Activity Area')
+legend('off')
+
+nexttile
+gscatter(HS(:,2),DS(:,2),string(Catlab'))
+xlabel('Proliferation Archetype Score')
+ylabel('Irinotecan Activity Area')
+legend('off')
+
+nexttile
+gscatter(HS(:,3),DS(:,3),string(Catlab'))
+xlabel('Biomass Archetype Score')
+ylabel('Lapatinib Activity Area')
+lgd=legend;
+
+lgd.Layout.Tile=7;
+lgd.Layout.TileSpan=[1,3];
+lgd.NumColumns=6;
 
 %% Clear old variables
 
@@ -678,7 +835,6 @@ Drug_Table=table('Size',[24 2],'VariableType',{'string','string'},'VariableNames
 Drug_Table.Drug_Name=Drugs(a);
 Drug_Table.Drug_Target=Drug_Target(a);
 %writetable(Drug_Table,'Drug_Info.csv')
-
 
 %% Fig 3B
 
