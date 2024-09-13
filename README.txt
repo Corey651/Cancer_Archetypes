@@ -1,4 +1,4 @@
-This repository contains code for N-NMF, structured in a way to reproduce all results in our article "Functional transcriptional signatures for tumor-type-agnostic phenotype prediction" - C. Weistuch et al.
+This repository contains code for N-NMF, structured in a way to reproduce all results in our article "Normal tissue transcriptional signatures for tumor-type-agnostic phenotype prediction" - C. Weistuch et al.
 
 
 All necessary inputs (data), relevant outputs, and functions are included in this repository except for the following exceptions which were too large for github:
